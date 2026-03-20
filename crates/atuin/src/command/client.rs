@@ -2,7 +2,7 @@ use std::fs::{self, OpenOptions};
 use std::path::{Path, PathBuf};
 
 use clap::Subcommand;
-use eyre::{Result, WrapErr};
+use eyre::{Result, WrapErr, bail};
 
 use atuin_client::{
     database::Sqlite, record::sqlite_store::SqliteStore, settings::Settings, theme,
@@ -140,7 +140,7 @@ pub enum Cmd {
 }
 
 impl Cmd {
-    pub fn run(self) -> Result<()> {
+    pub fn run(self, online: bool) -> Result<()> {
         // Daemonize before creating the async runtime – fork() inside a live
         // tokio runtime corrupts its internal state.
         #[cfg(all(unix, feature = "daemon"))]
@@ -155,7 +155,10 @@ impl Cmd {
             .build()
             .unwrap();
 
-        let settings = Settings::new().wrap_err("could not load client settings")?;
+        let mut settings = Settings::new().wrap_err("could not load client settings")?;
+        if online {
+            settings.offline = false;
+        }
         let theme_manager = theme::ThemeManager::new(settings.theme.debug, None);
         let res = runtime.block_on(self.run_inner(settings, theme_manager));
 
@@ -344,7 +347,21 @@ impl Cmd {
             Self::Search(search) => search.run(db, &mut settings, sqlite_store, theme).await,
 
             #[cfg(feature = "sync")]
+            Self::Sync(_) if settings.offline => {
+                bail!(
+                    "Cannot sync in offline mode. Use --online or set offline=false in config.toml"
+                );
+            }
+
+            #[cfg(feature = "sync")]
             Self::Sync(sync) => sync.run(settings, &db, sqlite_store).await,
+
+            #[cfg(feature = "sync")]
+            Self::Account(_) if settings.offline => {
+                bail!(
+                    "Cannot access account in offline mode. Use --online or set offline=false in config.toml"
+                );
+            }
 
             #[cfg(feature = "sync")]
             Self::Account(account) => account.run(settings, sqlite_store).await,
@@ -373,6 +390,13 @@ impl Cmd {
             Self::Daemon(cmd) => cmd.run(settings, sqlite_store, db).await,
 
             Self::History(_) | Self::Init(_) | Self::Doctor => unreachable!(),
+
+            #[cfg(feature = "ai")]
+            Self::Ai(_) if settings.offline => {
+                bail!(
+                    "Cannot use AI in offline mode. Use --online or set offline=false in config.toml"
+                );
+            }
 
             #[cfg(feature = "ai")]
             Self::Ai(cli) => atuin_ai::commands::run(cli, &settings).await,

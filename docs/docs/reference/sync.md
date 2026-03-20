@@ -9,14 +9,21 @@ host one at https://api.atuin.sh. This is the default server address, which can
 be changed in the [config](../configuration/config.md#sync_address). Again, I _cannot_ see your data, and
 do not want to.
 
+## Offline mode
+
+By default, Atuin runs in offline mode — no network requests are made. To use sync, update checks, or AI features, you can either:
+
+- Set `offline = false` in your [config](../configuration/config.md#offline)
+- Use the `--online` flag: `atuin --online sync`
+
 ## Sync frequency
 
-Syncing will happen automatically, unless configured otherwise. The sync
+Syncing will happen automatically (when offline mode is disabled), unless configured otherwise. The sync
 frequency is configurable in [config](../configuration/config.md#sync_frequency)
 
 ## Sync
 
-You can manually trigger a sync with `atuin sync`
+You can manually trigger a sync with `atuin sync` (requires `--online` or `offline = false`)
 
 ## Register
 

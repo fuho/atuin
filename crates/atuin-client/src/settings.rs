@@ -1003,6 +1003,7 @@ pub struct Settings {
     pub style: Style,
     pub auto_sync: bool,
     pub update_check: bool,
+    pub offline: bool,
 
     /// The sync address for atuin.
     pub sync_address: String,
@@ -1161,6 +1162,10 @@ impl Settings {
     }
 
     pub async fn should_sync(&self) -> Result<bool> {
+        if self.offline {
+            return Ok(false);
+        }
+
         if !self.auto_sync || !Self::meta_store().await?.logged_in().await? {
             return Ok(false);
         }
@@ -1315,6 +1320,10 @@ impl Settings {
     // Return Some(latest version) if an update is needed. Otherwise, none.
     #[cfg(feature = "check-update")]
     pub async fn needs_update(&self) -> Option<Version> {
+        if self.offline {
+            return None;
+        }
+
         if !self.update_check {
             return None;
         }
@@ -1384,6 +1393,7 @@ impl Settings {
             .set_default("timezone", "local")?
             .set_default("auto_sync", true)?
             .set_default("update_check", cfg!(feature = "check-update"))?
+            .set_default("offline", true)?
             .set_default("sync_address", "https://api.atuin.sh")?
             .set_default("sync_frequency", "5m")?
             .set_default("search_mode", "fuzzy")?

@@ -75,6 +75,22 @@ Configures whether or not to automatically check for updates.
 update_check = true/false
 ```
 
+### `offline`
+
+Default: `true`
+
+Configures whether Atuin runs in offline mode. When enabled, all network access is disabled — sync, update checks, account commands, and AI features will not make any network requests.
+
+To enable networking, either set this to `false` in your config or use the `--online` CLI flag:
+
+```toml
+offline = true/false
+```
+
+```shell
+atuin --online sync
+```
+
 ### `sync_address`
 
 Default: `https://api.atuin.sh`

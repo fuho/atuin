@@ -44,13 +44,17 @@ const STYLES: Styles = Styles::styled()
     styles = STYLES,
 )]
 struct Atuin {
+    /// Enable network access (offline by default)
+    #[arg(long, global = true)]
+    online: bool,
+
     #[command(subcommand)]
     atuin: AtuinCmd,
 }
 
 impl Atuin {
     fn run(self) -> Result<()> {
-        self.atuin.run()
+        self.atuin.run(self.online)
     }
 }
 

@@ -215,10 +215,17 @@ pub async fn login<DB: Database>(
     login: Json<LoginRequest>,
 ) -> Result<Json<LoginResponse>, ErrorResponseStatus<'static>> {
     let db = &state.0.database;
+    // Dummy hash used for constant-time comparison when user is not found,
+    // preventing timing side-channel user enumeration.
+    const DUMMY_HASH: &str = "$argon2id$v=19$m=19456,t=2,p=1$AAAAAAAAAAAAAAAA$AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA";
+
     let user = match db.get_user(login.username.borrow()).await {
         Ok(u) => u,
         Err(DbError::NotFound) => {
-            return Err(ErrorResponse::reply("user not found").with_status(StatusCode::NOT_FOUND));
+            // Run a dummy verify to prevent timing side-channel
+            let _ = verify_str(DUMMY_HASH, login.password.borrow());
+            return Err(ErrorResponse::reply("invalid username or password")
+                .with_status(StatusCode::UNAUTHORIZED));
         }
         Err(DbError::Other(e)) => {
             error!("failed to get user {}: {}", login.username.clone(), e);
@@ -232,7 +239,8 @@ pub async fn login<DB: Database>(
         Ok(u) => u,
         Err(DbError::NotFound) => {
             debug!("user session not found for user id={}", user.id);
-            return Err(ErrorResponse::reply("user not found").with_status(StatusCode::NOT_FOUND));
+            return Err(ErrorResponse::reply("invalid username or password")
+                .with_status(StatusCode::UNAUTHORIZED));
         }
         Err(DbError::Other(err)) => {
             error!("database error for user {}: {}", login.username, err);
@@ -246,7 +254,8 @@ pub async fn login<DB: Database>(
     if !verified {
         debug!(user = user.username, "login failed");
         return Err(
-            ErrorResponse::reply("password is not correct").with_status(StatusCode::UNAUTHORIZED)
+            ErrorResponse::reply("invalid username or password")
+                .with_status(StatusCode::UNAUTHORIZED),
         );
     }
 

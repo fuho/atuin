@@ -142,8 +142,12 @@ async fn sync_loop(handle: DaemonHandle, mut cmd_rx: mpsc::Receiver<SyncCommand>
             _ = ticker.tick() => {
                 let settings = handle.settings().await;
 
-                // Skip periodic ticks if auto_sync is disabled AND we're not retrying
-                // a previous failure. Retries must continue regardless of auto_sync.
+                // Skip periodic ticks if offline or auto_sync is disabled AND we're
+                // not retrying a previous failure.
+                if settings.offline && sync_state == SyncState::Idle {
+                    tracing::debug!("offline mode enabled, skipping sync tick");
+                    continue;
+                }
                 if !settings.auto_sync && sync_state == SyncState::Idle {
                     tracing::debug!("auto_sync disabled, skipping periodic sync tick");
                     continue;

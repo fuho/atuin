@@ -110,6 +110,19 @@ pub async fn register<DB: Database>(
         }
     }
 
+    if register.password.len() < 8 {
+        return Err(
+            ErrorResponse::reply("password must be at least 8 characters")
+                .with_status(StatusCode::BAD_REQUEST),
+        );
+    }
+
+    if !register.email.contains('@') || register.email.len() < 5 {
+        return Err(
+            ErrorResponse::reply("invalid email address").with_status(StatusCode::BAD_REQUEST),
+        );
+    }
+
     let hashed = hash_secret(&register.password);
 
     let new_user = NewUser {

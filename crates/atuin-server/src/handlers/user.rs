@@ -29,8 +29,16 @@ use reqwest::header::CONTENT_TYPE;
 
 use atuin_common::{api::*, utils::crypto_random_string};
 
+fn argon2_instance() -> Argon2<'static> {
+    Argon2::new(
+        Algorithm::Argon2id,
+        Version::V0x13,
+        Params::new(19456, 2, 1, None).expect("valid argon2 params"),
+    )
+}
+
 pub fn verify_str(hash: &str, password: &str) -> bool {
-    let arg2 = Argon2::new(Algorithm::Argon2id, Version::V0x13, Params::default());
+    let arg2 = argon2_instance();
     let Ok(hash) = PasswordHash::new(hash) else {
         return false;
     };
@@ -108,6 +116,19 @@ pub async fn register<DB: Database>(
                 .with_status(StatusCode::BAD_REQUEST));
             }
         }
+    }
+
+    if register.password.len() < 8 {
+        return Err(
+            ErrorResponse::reply("password must be at least 8 characters")
+                .with_status(StatusCode::BAD_REQUEST),
+        );
+    }
+
+    if !register.email.contains('@') || register.email.len() < 5 {
+        return Err(
+            ErrorResponse::reply("invalid email address").with_status(StatusCode::BAD_REQUEST)
+        );
     }
 
     let hashed = hash_secret(&register.password);
@@ -215,10 +236,17 @@ pub async fn login<DB: Database>(
     login: Json<LoginRequest>,
 ) -> Result<Json<LoginResponse>, ErrorResponseStatus<'static>> {
     let db = &state.0.database;
+    // Dummy hash used for constant-time comparison when user is not found,
+    // preventing timing side-channel user enumeration.
+    const DUMMY_HASH: &str = "$argon2id$v=19$m=19456,t=2,p=1$AAAAAAAAAAAAAAAA$AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA";
+
     let user = match db.get_user(login.username.borrow()).await {
         Ok(u) => u,
         Err(DbError::NotFound) => {
-            return Err(ErrorResponse::reply("user not found").with_status(StatusCode::NOT_FOUND));
+            // Run a dummy verify to prevent timing side-channel
+            let _ = verify_str(DUMMY_HASH, login.password.borrow());
+            return Err(ErrorResponse::reply("invalid username or password")
+                .with_status(StatusCode::UNAUTHORIZED));
         }
         Err(DbError::Other(e)) => {
             error!("failed to get user {}: {}", login.username.clone(), e);
@@ -232,7 +260,8 @@ pub async fn login<DB: Database>(
         Ok(u) => u,
         Err(DbError::NotFound) => {
             debug!("user session not found for user id={}", user.id);
-            return Err(ErrorResponse::reply("user not found").with_status(StatusCode::NOT_FOUND));
+            return Err(ErrorResponse::reply("invalid username or password")
+                .with_status(StatusCode::UNAUTHORIZED));
         }
         Err(DbError::Other(err)) => {
             error!("database error for user {}: {}", login.username, err);
@@ -245,9 +274,8 @@ pub async fn login<DB: Database>(
 
     if !verified {
         debug!(user = user.username, "login failed");
-        return Err(
-            ErrorResponse::reply("password is not correct").with_status(StatusCode::UNAUTHORIZED)
-        );
+        return Err(ErrorResponse::reply("invalid username or password")
+            .with_status(StatusCode::UNAUTHORIZED));
     }
 
     debug!(user = user.username, "login success");
@@ -258,7 +286,7 @@ pub async fn login<DB: Database>(
 }
 
 fn hash_secret(password: &str) -> String {
-    let arg2 = Argon2::new(Algorithm::Argon2id, Version::V0x13, Params::default());
+    let arg2 = argon2_instance();
     let salt = SaltString::generate(&mut OsRng);
     let hash = arg2.hash_password(password.as_bytes(), &salt).unwrap();
     hash.to_string()

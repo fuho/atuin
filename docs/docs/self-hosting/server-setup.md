@@ -36,13 +36,22 @@ ATUIN_OPEN_REGISTRATION=true
 ATUIN_DB_URI="postgres://user:password@hostname/database"
 ```
 
-| Parameter           | Description                                                    |
-| ------------------- | -------------------------------------------------------------- |
-| `host`              | The host to listen on (default: 127.0.0.1)                     |
-| `port`              | The TCP port to listen on (default: 8888)                      |
-| `open_registration` | If `true`, accept new user registrations (default: false)      |
-| `db_uri`            | A valid PostgreSQL URI, for saving history (default: false)    |
-| `path`              | A path to prepend to all routes of the server (default: false) |
+| Parameter           | Description                                                        |
+| ------------------- | ------------------------------------------------------------------ |
+| `host`              | The host to listen on (default: 127.0.0.1)                         |
+| `port`              | The TCP port to listen on (default: 8888)                          |
+| `open_registration` | If `true`, accept new user registrations (default: false)          |
+| `db_uri`            | A valid PostgreSQL or SQLite URI, for saving history               |
+| `path`              | A path to prepend to all routes of the server (default: "")        |
+| `max_record_size`   | Maximum size of a single sync record in bytes (default: 67108864)  |
+
+### Registration requirements
+
+When `open_registration` is enabled, the server enforces the following:
+
+- Usernames may only contain alphanumeric characters and hyphens
+- Passwords must be at least 8 characters long
+- Email addresses must contain `@` and be at least 5 characters long
 
 For sqlite, use the following in your server.toml:
 

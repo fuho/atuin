@@ -29,8 +29,16 @@ use reqwest::header::CONTENT_TYPE;
 
 use atuin_common::{api::*, utils::crypto_random_string};
 
+fn argon2_instance() -> Argon2<'static> {
+    Argon2::new(
+        Algorithm::Argon2id,
+        Version::V0x13,
+        Params::new(19456, 2, 1, None).expect("valid argon2 params"),
+    )
+}
+
 pub fn verify_str(hash: &str, password: &str) -> bool {
-    let arg2 = Argon2::new(Algorithm::Argon2id, Version::V0x13, Params::default());
+    let arg2 = argon2_instance();
     let Ok(hash) = PasswordHash::new(hash) else {
         return false;
     };
@@ -280,7 +288,7 @@ pub async fn login<DB: Database>(
 }
 
 fn hash_secret(password: &str) -> String {
-    let arg2 = Argon2::new(Algorithm::Argon2id, Version::V0x13, Params::default());
+    let arg2 = argon2_instance();
     let salt = SaltString::generate(&mut OsRng);
     let hash = arg2.hash_password(password.as_bytes(), &salt).unwrap();
     hash.to_string()

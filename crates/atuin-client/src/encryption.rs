@@ -10,6 +10,9 @@
 
 use std::{io::prelude::*, path::PathBuf};
 
+#[cfg(unix)]
+use std::os::unix::fs::PermissionsExt;
+
 use base64::prelude::{BASE64_STANDARD, Engine};
 pub use crypto_secretbox::Key;
 use crypto_secretbox::{
@@ -17,6 +20,7 @@ use crypto_secretbox::{
     aead::{Nonce, OsRng},
 };
 use eyre::{Context, Result, bail, ensure, eyre};
+#[cfg(not(unix))]
 use fs_err as fs;
 use rmp::{Marker, decode::Bytes};
 use serde::{Deserialize, Serialize};
@@ -47,7 +51,18 @@ pub fn new_key(settings: &Settings) -> Result<Key> {
 
     let (key, encoded) = generate_encoded_key()?;
 
-    let mut file = fs::File::create(path)?;
+    #[cfg(unix)]
+    let mut file = {
+        use std::os::unix::fs::OpenOptionsExt;
+        std::fs::OpenOptions::new()
+            .write(true)
+            .create_new(true)
+            .mode(0o600)
+            .open(&path)?
+    };
+    #[cfg(not(unix))]
+    let mut file = fs::File::create(&path)?;
+
     file.write_all(encoded.as_bytes())?;
 
     Ok(key)
@@ -58,6 +73,23 @@ pub fn load_key(settings: &Settings) -> Result<Key> {
     let path = settings.key_path.as_str();
 
     let key = if PathBuf::from(path).exists() {
+        #[cfg(unix)]
+        {
+            let metadata = std::fs::metadata(path)?;
+            let mode = metadata.permissions().mode() & 0o777;
+            if mode & 0o077 != 0 {
+                log::warn!(
+                    "key file {} has overly permissive mode {:#o}, fixing to 0600",
+                    path,
+                    mode
+                );
+                std::fs::set_permissions(
+                    path,
+                    std::fs::Permissions::from_mode(0o600),
+                )?;
+            }
+        }
+
         let key = fs_err::read_to_string(path)?;
         decode_key(key)?
     } else {

@@ -41,7 +41,7 @@ pub enum AtuinCmd {
 }
 
 impl AtuinCmd {
-    pub fn run(self) -> Result<()> {
+    pub fn run(self, online: bool) -> Result<()> {
         #[cfg(not(windows))]
         {
             // set umask before we potentially open/create files
@@ -52,7 +52,7 @@ impl AtuinCmd {
 
         match self {
             #[cfg(feature = "client")]
-            Self::Client(client) => client.run(),
+            Self::Client(client) => client.run(online),
 
             #[cfg(feature = "hex")]
             Self::Hex { cmd } => {

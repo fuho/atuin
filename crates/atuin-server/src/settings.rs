@@ -73,7 +73,7 @@ impl Settings {
             .set_default("port", 8888)?
             .set_default("open_registration", false)?
             .set_default("max_history_length", 8192)?
-            .set_default("max_record_size", 1024 * 1024 * 1024)? // pretty chonky
+            .set_default("max_record_size", 1024 * 1024 * 64)? // 64 MB
             .set_default("path", "")?
             .set_default("register_webhook_username", "")?
             .set_default("page_size", 1100)?
